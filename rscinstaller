@@ -1,0 +1,512 @@
+#!/bin/bash
+
+#License:
+#"Remote Syslog" is a free application what can be used to view syslog messages.
+#Copyright (C) 2020 Tom Slenter
+#
+#This program is free software: you can redistribute it and/or modify
+#it under the terms of the GNU General Public License as published by
+#the Free Software Foundation, either version 3 of the License.
+#
+#This program is distributed in the hope that it will be useful,
+#but WITHOUT ANY WARRANTY; without even the implied warranty of
+#MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+#GNU General Public License for more details.
+#
+#You should have received a copy of the GNU General Public License
+#along with this program. If not, see <http://www.gnu.org/licenses/>.
+#
+#For more information contact the author:
+#Name author: Tom Slenter
+#E-mail: info@remotesyslog.com
+
+#Variables
+RSDEST=/opt/RSCCORE
+RSDESTCONF=/opt/RSCCORE/config
+SYSLOGCONF=/etc/syslog-ng/conf.d
+APACONFIG=/etc/apache2/sites-available
+RSBIN=/usr/bin
+RSPATH=$(pwd)
+APAPATH=/var/www/html
+VLOG=/var/log
+
+#Banner
+function banner() {
+    echo ""
+    echo "##################################################"
+    echo "#Remote Syslog Classic Core                      #"
+    echo "#More information: https://www.remotesyslog.com/ #"
+    echo "#Remote Syslog installation                      #"
+    echo "#Version: RSCCORE 0.1                            #"
+    echo "#Donations: https://github.com/tslenter/RSCCORE  #"
+    echo "##################################################"
+    echo ""
+}
+
+#Check if user is root
+if ! [ $(id -u) = 0 ]; then
+    clear
+    banner
+    echo "This installation must be run as root!"
+    echo ""
+    exit 1
+fi
+
+#Functions to check files, packages ...
+function check_package() {
+echo "Check package $1"
+dpkg-query -l $1 > /dev/null 2>&1
+if [ $? = 0 ]
+then
+    echo "Installation found ..."
+else
+    echo "Installation failed, abort (Hint: Did you install the core? ..."
+    exit
+fi
+}
+
+#Check if file exist
+function check_file() {
+    file=$1
+    if [ -e "$file" ]; then
+        echo "File: $1 exists, continue installation ..."
+    else
+        echo "File: $1 does not exist, exit ..."
+        exit
+    fi
+}
+
+#Check files in reverse
+function check_file_reverse() {
+    file=$1
+    if [ -e "$file" ]; then
+        echo "File: $1 exists, module already installed? Exiting ..."
+        exit
+    else
+        echo "File: $1 does not exist, continue installation ..."
+    fi
+}
+
+#Check if debug module is activated
+function mod_activ() {
+    file=$1
+    if [ -e "$file" ]; then
+        echo "Module activated ..."
+    else
+        echo "Module not activated ..."
+    fi
+}
+
+function coreinstall() {
+    echo "Starting core installation ..."
+    echo "Creating dummy remote_syslog file ..."
+    mkdir $VLOG/remote_syslog/
+    touch $VLOG/remote_syslog/remote_syslog.log
+    echo "Set dummy remote_syslog file permissions ..."
+    chown www-data:www-data $VLOG/remote_syslog/
+    chown www-data:www-data $VLOG/remote_syslog/remote_syslog.log
+    echo "Configuring syslog-ng ..."
+    cp -rf $RSDEST/core/syslog-ng $SYSLOGCONF/99-remote.conf
+    echo "Restart syslog-ng ..."
+    service syslog-ng restart
+    echo "Set logrotation ..."
+    cp -rf $RSDEST/core/logrotate /etc/logrotate.d/remotelog
+    echo "Activate colortail regex ..."
+    cp -rf $RSDEST/core/colortail /etc/colortail/conf.colortail
+    echo "Deploying application for CLI logging ..."
+    cp -rf $RSDEST/rsview $RSBIN/rsview
+    echo "Set permissions for CLI application ..."
+    chmod +x $RSBIN/rsview
+    echo "User Management ..."
+    cp -rf $RSDEST/rsuser $RSBIN/rsuser
+    echo "Set permissions user Management ..."
+    chmod +x $RSBIN/rsuser
+    echo "Deploy config to $RSCONF/ ..."
+    mkdir $RSCONF/
+    cp -rf $RSDEST/core/syslog-ng $RSCONF/
+    cp -rf $RSDEST/core/syslog-ng $RSCONF/syslog-ngdefault
+    cp -rf $RSDEST/core/logrotate $RSCONF/
+    cp -rf $RSDEST/core/logrotate $RSCONF/logrotatedefault
+    cp -rf $RSDEST/core/colortail $RSCONF/
+    cp -rf $RSDEST/core/colortail $RSCONF/colortaildefault
+    cp -rf $RSDEST/core/syslog-ng-local $RSCONF/syslog-ng-localdefault
+}
+
+function coreremove() {
+    echo "Check if Remote Syslog is installed ..."
+    check_file "$RSBIN/rsinstaller"
+    echo "Starting core removal ..."
+    echo "Configuring syslog-ng ..."
+    rm -rf $SYSLOGCONF/99-remote.conf
+    if [ -e "$SYSLOGCONF/99-remote-local.conf" ]; then
+        rm -rf $SYSLOGCONF/99-remote-local.conf
+    else
+        echo "No local debug found ..."
+    fi
+    echo "Removing packages syslog-ng ..."
+    apt -y purge syslog-ng colortail
+    apt -y autoremove
+    apt -y install rsyslog
+    echo "Set logrotation ..."
+    rm -rf /etc/logrotate.d/remotelog
+    echo "Remove colortail regex ..."
+    rm -rf /etc/colortail/conf.colortail
+    echo "Remove application for CLI logging ..."
+    rm -rf $RSBIN/rsview
+    echo "Remove config to $RSCONF/ ..."
+    rm -rf $RSCONF
+    echo "Remove $RSDEST"
+    rm -rf $RSDEST
+    echo "Remove user management ..."
+    rm -rf $RSBIN/rsuser
+    echo "Remove REPO file ..."
+    rm -rf /etc/apt/sources.list.d/91-debian-unstable.list
+    echo "Move log files ..."
+    cp -rf $VLOG/remote_syslog $VLOG/remote_syslog_uninstall && rm -rf $VLOG/remote_syslog
+    echo "Moved files to $VLOG/remote_syslog_uninstall .."
+    if [ -e "$APACHCONF/rsc/index.php" ]; then
+        rscremove
+    elif [ -e $SYSLOGCONF/99RSX-rs.conf ]; then
+        rsxremove
+    else
+        echo "No GUI found, remove done ..."
+    fi
+}
+
+#Upgrade online
+function upgrade() {
+    echo "Check if Remote Syslog is installed ..."
+    check_file $RSBIN/rsinstaller
+    echo "Starting upgrade ..."
+    echo "Download installation ..."
+    git clone --branch master https://github.com/tslenter/RSX-RSC.git $RSTMP/rs
+    echo "Check if download is successfull"
+    if [ -d "$RSTMP/rs" ]; then
+         echo "Continue installation ..."
+    else
+         echo "Clone not successfull ..."
+         exit
+    fi
+    cp -rf $RSTMP/rs/* $RSDEST
+    rm -rf $RSTMP/rs
+    version
+    echo "Start update ..."
+    echo "Deploying application for CLI logging ..."
+    cp -rf $RSDEST/rsview $RSBIN/rsview
+    echo "Set permissions for CLI application ..."
+    chmod +x $RSBIN/rsview
+    echo "Deploying user management ..."
+    cp -rf $RSDEST/rsuser $RSBIN/rsuser
+    echo "Set permissions for user management ..."
+    chmod +x $RSBIN/rsuser
+    echo "Set permissions for installer ..."
+    chmod +x $RSBIN/rsinstaller
+    echo "Set new default core configuration in $RSCONF/ ..."
+    cp -rf $RSDEST/config/syslog-ng $RSCONF/syslog-ngdefault
+    cp -rf $RSDEST/config/logrotate $RSCONF/logrotatedefault
+    cp -rf $RSDEST/config/colortail $RSCONF/colortaildefault
+    echo "Copy upgrade file to $RSTMP/ ..."
+    cp -rf $RSDEST/extraupgrade $RSTMP/extraupgrade
+    chmod +x $RSTMP/extraupgrade
+    $RSTMP/extraupgrade
+    echo "Remove update file ..."
+    rm -rf $RSTMP/extraupgrade
+    echo "Remove upgrade folder ..."
+    rm -rf $RSTMP/rs
+    echo "Restart syslog-ng ..."
+    service syslog-ng restart
+}
+
+#Install required packages
+function rscinstallpackages() {
+    echo "Check if Remote Syslog is installed ..."
+    check_file_reverse $RSBIN/rsinstaller
+    echo "Notice: This installation is tested for Ubuntu Server 20.04 LTS and Debian 10.x ..."
+    echo "Starting installation ..."
+    echo "Update installer cache ..."
+    if apt-add-repository multiverse > /dev/null 2>&1 ; then
+        printf 'Multiverse command succeeded\n'
+        apt-add-repository multiverse
+    else
+        printf 'Multiverse not found ...\n'
+    fi
+    apt update
+#Install syslog-ng
+    echo "Checking dependencies ..."
+    apt -y purge rsyslog
+    apt -y install syslog-ng colortail wget logrotate grep tar
+}
+
+
+function changedefault() {
+    echo "Reconfigure default values ..."
+    cp -rf $RSCONF/syslog-ng $SYSLOGCONF/99-remote.conf
+    echo "Restart syslog-ng ..."
+    service syslog-ng restart
+    echo "Set logrotation ..."
+    cp -rf $RSCONF/logrotate /etc/logrotate.d/remotelog
+    echo "Activate colortail regex ..."
+    cp -rf $RSCONF/colortail /etc/colortail/conf.colortail
+}
+
+function restoredefault() {
+    echo "Restore default syslog-ng values..."
+    cp -rf $RSCONF/syslog-ngdefault $SYSLOGCONF/99-remote.conf
+    echo "Restart syslog-ng ..."
+    service syslog-ng restart
+    echo "Restore default logrotation ..."
+    cp -rf $RSCONF/logrotatedefault /etc/logrotate.d/remotelog
+    echo "Restore default colortail regex ..."
+    cp -rf $RSCONF/colortaildefault /etc/colortail/conf.colortail
+}
+
+function debvarcheck() {
+    echo "Debian found ..."
+    echo "Update debian path ..."
+    PATH="/usr/sbin:$PATH"
+    echo "Install ufw ..."
+    fwcheck=$(dpkg-query -l ufw)
+    if [[ $fwcheck =~ "ufw" ]]; then
+        echo "Going for check 2 ..."
+        ufwcheck2="$(dpkg-query -l ufw | egrep '<none>')"
+        if [[ $ufwcheck2 =~ "<none>" ]]; then
+            echo "ufw missing ..."
+            apt install ufw -y
+        else
+            echo "Installation found ..."
+        fi
+    else
+        echo "ufw missing ..."
+        apt install ufw -y
+    fi
+}
+
+function ubntrepofix() {
+#Syslog-ng
+    echo "Update repository's ..."
+    echo "Load syslog-ng ..."
+    echo "Check if ARM ..."
+    drel="$(uname -a | egrep 'aarch64')"
+    echo "$drel found ..."
+    if [[ $drel =~ "aarch64" ]]; then
+        echo "ARM detected ..."
+        echo "Apply fix ..."
+        sudo echo "" > /etc/apt/sources.list.d/syslog-ng.list
+    else
+        echo "Continue ..."
+    fi
+#Java path fix
+    JVMPATH="$(cat /etc/environment | egrep 'LD_LIBRARY_PATH')"
+    if [[ $JVMPATH =~ "jdk" ]]; then
+        echo "Java environment found ..."
+        echo "Continue ..."
+    else
+        echo "LD_LIBRARY_PATH=/usr/lib/jvm/java-11-openjdk-amd64/lib/server" >> /etc/environment
+    fi
+    drel="$(lsb_release -a | egrep 'Codename:')"
+    if [ -e "/etc/apt/sources.list.d/syslog-ng.list" ]; then
+        echo "Nothing to do ..."
+    elif [[ $drel =~ "bionic" ]]; then
+        touch /etc/apt/sources.list.d/syslog-ng.list
+        wget -qO - https://cloud.remotesyslog.com/xUbuntu_18.04/Release.key | /usr/bin/apt-key add -
+        echo deb https://cloud.remotesyslog.com/xUbuntu_18.04 ./ > /etc/apt/sources.list.d/syslog-ng.list
+        apt update
+        apt auto-remove -y
+#If upgrade is triggered
+        apt install syslog-ng -y
+        check_package "syslog-ng"
+    elif [[ $drel =~ "focal" ]]; then
+        touch /etc/apt/sources.list.d/syslog-ng.list
+        wget -qO - https://cloud.remotesyslog.com/xUbuntu_20.04/Release.key | /usr/bin/apt-key add -
+        echo deb https://cloud.remotesyslog.com/xUbuntu_20.04 ./ > /etc/apt/sources.list.d/syslog-ng.list
+        apt update
+        apt auto-remove -y
+#If upgrade is triggered
+        apt install syslog-ng -y
+        check_package "syslog-ng"
+    else
+        echo "No distro found ..."
+        exit
+    fi
+}
+
+#Release check
+function distocheck() {
+    echo "Check release ..."
+    drel="$(lsb_release -a | egrep 'Codename:')"
+    echo "$drel found ..."
+    if [[ $drel =~ "buster" ]]; then
+        debvarcheck
+    elif [[ $drel =~ "sid" ]]; then
+        debvarcheck
+    elif [[ $drel =~ "bionic" ]]; then
+        echo "Ubuntu found ..."
+        ubntrepofix
+        echo "Done ..."
+    elif [[ $drel =~ "focal" ]]; then
+        echo "Ubuntu found ..."
+        ubntrepofix
+        echo "Done ..."
+    elif [[ $drel =~ "hirsute" ]]; then
+        echo "Ubuntu found ..."
+        ubntrepofix
+        echo "Done ..."
+     else
+        echo "No distro detected ..."
+        exit
+    fi
+}
+
+#Enable firewall
+function fwenable() {
+    echo "Install package ufw ..."
+    apt install -y ufw
+    echo "Activation of ufw rules ..."
+    check_package "ufw"
+    echo "Setting firewall rules ..."
+    ufw allow 22/tcp
+    ufw allow 80/tcp
+    ufw allow 443/tcp
+    ufw allow 514/tcp
+    ufw allow 514/udp
+    ufw --force enable
+    ufw status
+    echo "Done ..."
+}
+
+#Disable firewall
+function fwdisable() {
+    check_package "ufw"
+    echo "Disable firewall rules ..."
+    ufw disable
+    ufw status
+    echo "Done ..."
+}
+
+#Activate debug for rsview
+function startdebug() {
+    echo "Activate local syslog for debug ..."
+    cp -rf $RSDESTCONF/syslog-ng-local $SYSLOGCONF/99-remote-local.conf
+    echo "Restart syslog-ng ..."
+    service syslog-ng restart
+}
+
+#Stop debug for rsview
+function stopdebug() {
+   echo "Deactivate local syslog for debug ..."
+   rm -rf $SYSLOGCONF/99-remote-local.conf
+   echo "Restart syslog-ng ..."
+   service syslog-ng restart
+}
+
+#Thank you message
+function quit() {
+    echo "Thank you for using Remote Syslog ..."
+    exit
+}
+
+#Check if core is correctly installed
+function checkinstallationcore() {
+    echo "Check CLI application 1X ..."
+    check_file $RSBIN/rsview
+    echo "Check user management 1X ..."
+    check_file $RSBIN/rsuser
+    echo "Check syslog-ng 1X ..."
+    check_file $SYSLOGCONF/97EL-rs.conf
+    echo "Check reconfiguration files 1X ..."
+    check_file $RSDEST/config/syslog-ng-local
+    echo "Optional: check if debug module is activated:"
+    mod_activ $SYSLOGCONF/99-remote-local.conf
+}
+
+#Environment setup
+clear
+banner
+echo "Setting up environment ..."
+echo "Check 1 ..."
+if [ -e $RSPATH/rscinstaller ]; then
+    echo "rsinstaller found in local directory, copy to $RSDEST started ..."
+    if [ -d $RSDEST ]; then
+        echo "Directory already exist ..."
+    else
+        mkdir $RSDEST
+        echo "Directory created ..."
+    fi
+    cp -rf $RSPATH/* $RSDEST
+elif [ -e $RSDEST/rscinstaller ]; then
+    echo "rsccore run from $RSDEST, going for $RSDEST environment ..."
+else
+    echo "Did you run the installer from the right directory? ..."
+fi
+
+clear
+banner
+#Menu
+PS3='Please enter your choice: '
+options=("Core installation" "Core removal" "Core upgrade" "Activate firewall" "Disable firewall" "Add local syslog to RS core" "Remove local syslog from RS core" "Quit")
+select opt in "${options[@]}"
+do
+    case $opt in
+        "Core installation")
+            clear
+            banner
+            distocheck
+            rscinstallpackages
+            coreinstall
+            checkinstallationcore
+            quit
+            exit
+    ;;
+        "Core removal")
+            clear
+            banner
+            precheckremove
+            coreremove
+            quit
+            exit
+    ;;
+        "Core upgrade")
+            clear
+            banner
+            upgrade
+            quit
+            exit
+    ;;
+        "Activate firewall")
+            clear
+            banner
+            distocheck
+            fwenable
+            quit
+            exit
+    ;;
+        "Disable firewall")
+            clear
+            banner
+            distocheck
+            fwdisable
+            quit
+            exit
+    ;;
+        "Add local syslog to RS core")
+            clear
+            banner
+            distocheck
+            startdebug
+            quit
+            exit
+    ;;
+        "Remove local syslog from RS core")
+            clear
+            banner
+            distocheck
+            stopdebug
+            quit
+            exit
+    ;;
+        "Quit")
+            break
+    ;;
+        *) echo "Invalid option $REPLY ..." ;;
+    esac
+done
