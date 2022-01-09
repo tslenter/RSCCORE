@@ -106,13 +106,13 @@ function coreinstall() {
     chown www-data:www-data $VLOG/remote_syslog/
     chown www-data:www-data $VLOG/remote_syslog/remote_syslog.log
     echo "Configuring syslog-ng ..."
-    cp -rf $RSDEST/core/syslog-ng $SYSLOGCONF/99-remote.conf
+    cp -rf $RSDEST/config/syslog-ng $SYSLOGCONF/99-remote.conf
     echo "Restart syslog-ng ..."
     service syslog-ng restart
     echo "Set logrotation ..."
-    cp -rf $RSDEST/core/logrotate /etc/logrotate.d/remotelog
+    cp -rf $RSDEST/config/logrotate /etc/logrotate.d/remotelog
     echo "Activate colortail regex ..."
-    cp -rf $RSDEST/core/colortail /etc/colortail/conf.colortail
+    cp -rf $RSDEST/config/colortail /etc/colortail/conf.colortail
     echo "Deploying application for CLI logging ..."
     cp -rf $RSDEST/rsview $RSBIN/rsview
     echo "Set permissions for CLI application ..."
@@ -123,18 +123,18 @@ function coreinstall() {
     chmod +x $RSBIN/rsuser
     echo "Deploy config to $RSCONF/ ..."
     mkdir $RSCONF/
-    cp -rf $RSDEST/core/syslog-ng $RSCONF/
-    cp -rf $RSDEST/core/syslog-ng $RSCONF/syslog-ngdefault
-    cp -rf $RSDEST/core/logrotate $RSCONF/
-    cp -rf $RSDEST/core/logrotate $RSCONF/logrotatedefault
-    cp -rf $RSDEST/core/colortail $RSCONF/
-    cp -rf $RSDEST/core/colortail $RSCONF/colortaildefault
-    cp -rf $RSDEST/core/syslog-ng-local $RSCONF/syslog-ng-localdefault
+    cp -rf $RSDEST/config/syslog-ng $RSCONF/
+    cp -rf $RSDEST/config/syslog-ng $RSCONF/syslog-ngdefault
+    cp -rf $RSDEST/config/logrotate $RSCONF/
+    cp -rf $RSDEST/config/logrotate $RSCONF/logrotatedefault
+    cp -rf $RSDEST/config/colortail $RSCONF/
+    cp -rf $RSDEST/config/colortail $RSCONF/colortaildefault
+    cp -rf $RSDEST/config/syslog-ng-local $RSCONF/syslog-ng-localdefault
 }
 
 function coreremove() {
     echo "Check if Remote Syslog is installed ..."
-    check_file "$RSBIN/rsinstaller"
+    check_file "$RSBIN/rsview"
     echo "Starting core removal ..."
     echo "Configuring syslog-ng ..."
     rm -rf $SYSLOGCONF/99-remote.conf
@@ -164,19 +164,12 @@ function coreremove() {
     echo "Move log files ..."
     cp -rf $VLOG/remote_syslog $VLOG/remote_syslog_uninstall && rm -rf $VLOG/remote_syslog
     echo "Moved files to $VLOG/remote_syslog_uninstall .."
-    if [ -e "$APACHCONF/rsc/index.php" ]; then
-        rscremove
-    elif [ -e $SYSLOGCONF/99RSX-rs.conf ]; then
-        rsxremove
-    else
-        echo "No GUI found, remove done ..."
-    fi
 }
 
 #Upgrade online
 function upgrade() {
     echo "Check if Remote Syslog is installed ..."
-    check_file $RSBIN/rsinstaller
+    check_file $RSBIN/rsview
     echo "Starting upgrade ..."
     echo "Download installation ..."
     git clone --branch master https://github.com/tslenter/RSX-RSC.git $RSTMP/rs
@@ -220,7 +213,7 @@ function upgrade() {
 #Install required packages
 function rscinstallpackages() {
     echo "Check if Remote Syslog is installed ..."
-    check_file_reverse $RSBIN/rsinstaller
+    check_file_reverse $RSBIN/rsview
     echo "Notice: This installation is tested for Ubuntu Server 20.04 LTS and Debian 10.x ..."
     echo "Starting installation ..."
     echo "Update installer cache ..."
@@ -417,6 +410,22 @@ function checkinstallationcore() {
     check_file $RSDEST/config/syslog-ng-local
     echo "Optional: check if debug module is activated:"
     mod_activ $SYSLOGCONF/99-remote-local.conf
+}
+
+#Check if other modules are installed ...
+function precheckremove() {
+   if [ -f "$APAPATH/rsc/index.php" ]; then
+       echo "RSC web is installed please remove this first ..."
+       exit
+   elif [ -f $APACONFIG/rsx-apache.conf ]; then
+       echo "RSX web is installed please remove this first ..."
+       exit
+   elif [ -f "$APAPATH/rse/index.php" ]; then
+       echo "RSE web is installed please remove this first ..."
+       exit
+   else
+       echo "Continue ..."
+   fi
 }
 
 #Environment setup
