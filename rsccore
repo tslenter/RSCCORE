@@ -433,7 +433,7 @@ clear
 banner
 echo "Setting up environment ..."
 echo "Check 1 ..."
-if [ -e $RSPATH/rscinstaller ]; then
+if [ -e $RSPATH/rsccore ]; then
     echo "rsinstaller found in local directory, copy to $RSDEST started ..."
     if [ -d $RSDEST ]; then
         echo "Directory already exist ..."
@@ -442,7 +442,7 @@ if [ -e $RSPATH/rscinstaller ]; then
         echo "Directory created ..."
     fi
     cp -rf $RSPATH/* $RSDEST
-elif [ -e $RSDEST/rscinstaller ]; then
+elif [ -e $RSDEST/rsccore ]; then
     echo "rsccore run from $RSDEST, going for $RSDEST environment ..."
 else
     echo "Did you run the installer from the right directory? ..."
