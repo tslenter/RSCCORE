@@ -29,6 +29,7 @@ RSBIN=/usr/bin
 RSPATH=$(pwd)
 APAPATH=/var/www/html
 VLOG=/var/log
+RSTMP=/tmp
 
 #Banner
 function banner() {
