@@ -448,6 +448,23 @@ function restorephplimit() {
     service apache2 restart
 }
 
+#Time to keep save data
+function rstextperhost() {
+    echo "Please use only numbers and no strings ..."
+    read -p 'After how many days do you want to remove old plain text host files?: ' dayrm
+    if test "$dayrm" = ""; then
+        echo "Sorry, days cannot be blank"
+        exit 1;
+    fi
+    echo "Update configuration ..."
+    echo ""
+    echo "Remove old line ..."
+    crontab -l | grep -v '/usr/bin/find /var/log/remote_syslog/per_host/'  | crontab -
+    echo "Update configuration ..."
+    crontab -l | { cat; echo "*/10 * * * * /usr/bin/find /var/log/remote_syslog/per_host/* -type f -mtime +$dayrm -exec /bin/rm {} \;"; } | crontab -
+    echo "Done"
+}
+
 #Environment setup
 clear
 banner
@@ -472,7 +489,7 @@ clear
 banner
 #Menu
 PS3='Please enter your choice: '
-options=("Core installation" "Core removal" "Core upgrade" "Activate firewall" "Disable firewall" "Add local syslog to RS core" "Remove local syslog from RS core" "Reconfigure core services" "Restore default core configuration" "Set new memory PHP limit of 512M" "Set default PHP memory limit of 128M" "Quit")
+options=("Core installation" "Core removal" "Core upgrade" "Activate firewall" "Disable firewall" "Add local syslog to RS core" "Remove local syslog from RS core" "Reconfigure core services" "Restore default core configuration" "Set new memory PHP limit of 512M" "Set default PHP memory limit of 128M" "Set history removal of plain text logfiles" "Quit")
 select opt in "${options[@]}"
 do
     case $opt in
@@ -558,6 +575,14 @@ do
             exit
     ;;
         "Set default PHP memory limit of 128M")
+            clear
+            banner
+            distocheck
+            restorephplimit
+            quit
+            exit
+    ;;
+        "Set history removal of plain text logfiles")
             clear
             banner
             distocheck
