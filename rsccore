@@ -31,7 +31,6 @@ RSPATH=$(pwd)
 APAPATH=/var/www/html
 VLOG=/var/log
 RSTMP=/tmp
-APACHPHP=/etc/php/7.[0-9]/apache2
 
 #Banner
 function banner() {
@@ -428,26 +427,6 @@ function precheckremove() {
    fi
 }
 
-#FIX for larger RSC searches
-function extentphplimit() {
-    echo "Extent PHP limit to 512M ..."
-    check_file $APACHPHP/php.ini
-    echo "Setting PHP limit to 512M ..."
-    sed -i '/memory_limit/c\\memory_limit = 512M' $APACHPHP/php.ini
-    echo "Restarting webservices ..."
-    service apache2 restart
-}
-
-#Restore FIX for larger RSC searches
-function restorephplimit() {
-    echo "Restoring PHP limit to default values 128M ..."
-    check_file $APACHPHP/php.ini
-    echo "Setting PHP limit to 128M ..."
-    sed -i '/memory_limit/c\\memory_limit = 128M' $APACHPHP/php.ini
-    echo "Restarting webservices ..."
-    service apache2 restart
-}
-
 #Time to keep save data
 function rstextperhost() {
     echo "Please use only numbers and no strings ..."
@@ -489,7 +468,7 @@ clear
 banner
 #Menu
 PS3='Please enter your choice: '
-options=("Core installation" "Core removal" "Core upgrade" "Activate firewall" "Disable firewall" "Add local syslog to RS core" "Remove local syslog from RS core" "Reconfigure core services" "Restore default core configuration" "Set new memory PHP limit of 512M" "Set default PHP memory limit of 128M" "Set history removal of plain text logfiles" "Quit")
+options=("Core installation" "Core removal" "Core upgrade" "Activate firewall" "Disable firewall" "Add local syslog to RS core" "Remove local syslog from RS core" "Reconfigure core services" "Restore default core configuration" "Set history removal of plain text logfiles" "Quit")
 select opt in "${options[@]}"
 do
     case $opt in
@@ -563,22 +542,6 @@ do
             banner
             distocheck
             restoredefault
-            quit
-            exit
-    ;;
-        "Set new memory PHP limit of 512M")
-            clear
-            banner
-            distocheck
-            extentphplimit
-            quit
-            exit
-    ;;
-        "Set default PHP memory limit of 128M")
-            clear
-            banner
-            distocheck
-            restorephplimit
             quit
             exit
     ;;
