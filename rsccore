@@ -586,7 +586,7 @@ do
             clear
             banner
             distocheck
-            restorephplimit
+            rstextperhost
             quit
             exit
     ;;
