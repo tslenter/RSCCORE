@@ -40,7 +40,8 @@ function banner() {
     echo "#More information: https://www.remotesyslog.com/ #"
     echo "#Remote Syslog installation                      #"
     echo "#Version: RSCCORE 0.1                            #"
-    echo "#Donations: https://github.com/tslenter/RSCCORE  #"
+    echo "#URL: https://github.com/tslenter/RSCCORE        #"
+    echo "#Donation: https://github.com/tslenter/RS        #"
     echo "##################################################"
     echo ""
 }
