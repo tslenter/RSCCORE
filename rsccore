@@ -332,6 +332,8 @@ function distocheck() {
         debvarcheck
     elif [[ $drel =~ "sid" ]]; then
         debvarcheck
+    elif [[ $drel =~ "bookworm" ]]; then
+        debvarcheck
     elif [[ $drel =~ "bionic" ]]; then
         echo "Ubuntu found ..."
         ubntrepofix
